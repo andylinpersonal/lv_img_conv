@@ -44,7 +44,6 @@ class Converter {
     /* Current pass being made */
     pass: number;
 
-
     constructor(w: number, h: number, imageData, alpha: boolean, options: Partial<ConverterOptions>) {
         this.w = w;
         this.h = h;
@@ -75,14 +74,14 @@ class Converter {
      * Get the number of passes being made over an image to output it.
      */
     getNumPasses() {
-        if(this.cf == ImageMode.CF_RGB565A8)
+        if(this.cf == ImageMode.RGB565A8)
             return 2;
         else
             return 1;
     }
 
     async convert(): Promise<string|ArrayBuffer> {
-        if(this.cf == ImageMode.CF_RAW || this.cf == ImageMode.CF_RAW_ALPHA) {
+        if(this.cf == ImageMode.RAW || this.cf == ImageMode.RAW_ALPHA) {
             const d_array = Array.from((this.imageData as Uint8Array));
             this.raw_len = d_array.length;
             const indent = this.options.useLegacyFooterOrder ? "  ": "    ";
@@ -92,16 +91,16 @@ class Converter {
             return str;
         }
         var palette_size = 0, bits_per_value = 0;
-        if(this.cf == ImageMode.CF_INDEXED_1_BIT) {
+        if(this.cf == ImageMode.I1) {
             palette_size = 2;
             bits_per_value = 1;
-        } else if(this.cf == ImageMode.CF_INDEXED_2_BIT) {
+        } else if(this.cf == ImageMode.I2) {
             palette_size = 4;
             bits_per_value = 2;
-        } else if(this.cf == ImageMode.CF_INDEXED_4_BIT) {
+        } else if(this.cf == ImageMode.I4) {
             palette_size = 16;
             bits_per_value = 4;
-        } else if(this.cf == ImageMode.CF_INDEXED_8_BIT) {
+        } else if(this.cf == ImageMode.I8) {
             palette_size = 256;
             bits_per_value = 8;
         }
@@ -163,33 +162,27 @@ class Converter {
         }
 
         if(this.outputFormat == OutputMode.C)
-            return this.format_to_c_array();
+        return this.format_to_c_array(); 
         else {
             var $content = this.d_out;
             var $cf = this.cf;
             var $lv_cf = 4;               /*Color format in LittlevGL*/
             switch($cf) {
-                case ImageMode.CF_TRUE_COLOR:
-                    $lv_cf = 4; break;
-                case ImageMode.CF_TRUE_COLOR_ALPHA:
-                    $lv_cf = 5; break;
-                case ImageMode.CF_TRUE_COLOR_CHROMA:
-                    $lv_cf = 6; break;
-                case ImageMode.CF_INDEXED_1_BIT:
+                case ImageMode.I1:
                     $lv_cf = 7; break;
-                case ImageMode.CF_INDEXED_2_BIT:
+                case ImageMode.I2:
                     $lv_cf = 8; break;
-                case ImageMode.CF_INDEXED_4_BIT:
+                case ImageMode.I4:
                     $lv_cf = 9; break;
-                case ImageMode.CF_INDEXED_8_BIT:
+                case ImageMode.I8:
                     $lv_cf = 10; break;
-                case ImageMode.CF_ALPHA_1_BIT:
+                case ImageMode.A1:
                     $lv_cf = 11; break;
-                case ImageMode.CF_ALPHA_2_BIT:
+                case ImageMode.A2:
                     $lv_cf = 12; break;
-                case ImageMode.CF_ALPHA_4_BIT:
+                case ImageMode.A4:
                     $lv_cf = 13; break;
-                case ImageMode.CF_ALPHA_8_BIT:
+                case ImageMode.A8:
                     $lv_cf = 14; break;
             }
 
@@ -231,7 +224,7 @@ class Converter {
 #endif
 
 `;
-        var $attr_name = "LV_ATTRIBUTE_IMG_" + out_name.toUpperCase(); 
+        var $attr_name = "LV_ATTRIBUTE_IMAGE_" + out_name.toUpperCase(); 
         $c_header += 
 `#ifndef ${$attr_name}
 #define ${$attr_name}
@@ -243,55 +236,27 @@ const LV_ATTRIBUTE_MEM_ALIGN LV_ATTRIBUTE_LARGE_CONST ${$attr_name} uint8_t ` + 
     }
 
     static imagemode_to_enum_name($cf: ImageMode): string {
-        switch($cf) {
-            case ImageMode.CF_TRUE_COLOR:
-            case ImageMode.CF_TRUE_COLOR_ALPHA:
-            case ImageMode.CF_RAW_ALPHA:
-            case ImageMode.CF_RGB565A8:
-                return "LV_IMG_" + ImageMode[$cf];
-            case ImageMode.CF_TRUE_COLOR_CHROMA:
-                return "LV_IMG_CF_TRUE_COLOR_CHROMA_KEYED";
-            case ImageMode.CF_RAW_CHROMA: /* and CF_RAW due to it having the same value */
-                return "LV_IMG_CF_RAW_CHROMA_KEYED";
-            case ImageMode.CF_ALPHA_1_BIT:
-            case ImageMode.CF_ALPHA_2_BIT:
-            case ImageMode.CF_ALPHA_4_BIT:
-            case ImageMode.CF_ALPHA_8_BIT:
-            case ImageMode.CF_INDEXED_1_BIT:
-            case ImageMode.CF_INDEXED_2_BIT:
-            case ImageMode.CF_INDEXED_4_BIT:
-            case ImageMode.CF_INDEXED_8_BIT:
-                return "LV_IMG_" + ImageMode[$cf].replace("_BIT", "BIT");
-            default:
-                throw new Error("unexpected color format " + $cf);
-        }
+        return "LV_COLOR_FORMAT_" + ImageMode[$cf];
     }
 
     get_c_footer($cf, out_name) {
-
         var header_cf = Converter.imagemode_to_enum_name($cf);
         var data_size;
 
         switch($cf) {
-            case ImageMode.CF_TRUE_COLOR:
-            case ImageMode.CF_TRUE_COLOR_ALPHA:
-            case ImageMode.CF_TRUE_COLOR_CHROMA:
-                data_size = this.w * this.h + " * " + ($cf == ImageMode.CF_TRUE_COLOR_ALPHA ? "LV_IMG_PX_SIZE_ALPHA_BYTE" : "LV_COLOR_SIZE / 8");
-                break;
-            case ImageMode.CF_ALPHA_1_BIT:
-            case ImageMode.CF_ALPHA_2_BIT:
-            case ImageMode.CF_ALPHA_4_BIT:
-            case ImageMode.CF_ALPHA_8_BIT:
-            case ImageMode.CF_INDEXED_1_BIT:
-            case ImageMode.CF_INDEXED_2_BIT:
-            case ImageMode.CF_INDEXED_4_BIT:
-            case ImageMode.CF_INDEXED_8_BIT:
-            case ImageMode.CF_RGB565A8:
+            case ImageMode.A1:
+            case ImageMode.A2:
+            case ImageMode.A4:
+            case ImageMode.A8:
+            case ImageMode.I1:
+            case ImageMode.I2:
+            case ImageMode.I4:
+            case ImageMode.I8:
+            case ImageMode.RGB565A8:
                 data_size = this.d_out.length;
                 break;
-            case ImageMode.CF_RAW:
-            case ImageMode.CF_RAW_ALPHA:
-            case ImageMode.CF_RAW_CHROMA:
+            case ImageMode.RAW:
+            case ImageMode.RAW_ALPHA:
                 data_size = this.raw_len;
                 break;
             default:
@@ -301,31 +266,18 @@ const LV_ATTRIBUTE_MEM_ALIGN LV_ATTRIBUTE_LARGE_CONST ${$attr_name} uint8_t ` + 
         var $c_footer;
         if(!this.options.useLegacyFooterOrder) {
             $c_footer = `\n};\n
-const lv_img_dsc_t ${out_name} = {
+const lv_image_dsc_t ${out_name} = {
   .header.cf = ${header_cf},
-  .header.always_zero = 0,
-  .header.reserved = 0,
+  .header.magic = LV_IMAGE_HEADER_MAGIC,
   .header.w = ${this.w},
   .header.h = ${this.h},
   .data_size = ${data_size},
   .data = ${out_name}_map,
 };\n`;
-        } else {
-            $c_footer = `\n};\n
-const lv_img_dsc_t ${out_name} = {
-  .header.always_zero = 0,
-  .header.w = ${this.w},
-  .header.h = ${this.h},
-  .data_size = ${data_size},
-  .header.cf = ${header_cf},
-  .data = ${out_name}_map,
-};\n`;           
         }
-
 
         return $c_footer;
     }
-
 
     private conv_px(x, y) {
         function array_push<T>(arr: Array<T>, v: T) {
@@ -347,35 +299,22 @@ const lv_img_dsc_t ${out_name} = {
 
         const c = this.imageData[((y*this.w)+x)];
 
-        if(this.cf == ImageMode.ICF_TRUE_COLOR_ARGB8565
-            || this.cf == ImageMode.ICF_TRUE_COLOR_ARGB8565_RBSWAP
-            || this.cf == ImageMode.ICF_TRUE_COLOR_ARGB8332
-            || this.cf == ImageMode.ICF_TRUE_COLOR_ARGB8888
-            || this.cf == ImageMode.CF_RGB565A8) {
-            /* Populate r_act, g_act, b_act */
-            this.dith_next(r, g, b, x);
+        if(this.cf == ImageMode.ARGB8565 || this.cf == ImageMode.ARGB8888 || this.cf == ImageMode.RGB565A8) {
+        /* Populate r_act, g_act, b_act */
+        this.dith_next(r, g, b, x);
         }
 
-        if(this.cf == ImageMode.ICF_TRUE_COLOR_ARGB8332) {
-            const c8 = (this.r_act) | (this.g_act >> 3) | (this.b_act >> 6);	//RGB332
-            array_push(this.d_out, c8);
-            if(this.alpha) array_push(this.d_out, a);
-        } else if(this.cf == ImageMode.ICF_TRUE_COLOR_ARGB8565) {
+        if(this.cf == ImageMode.ARGB8565) {
             const c16 = ((this.r_act) << 8) | ((this.g_act) << 3) | ((this.b_act) >> 3);	//RGR565
             array_push(this.d_out, c16 & 0xFF);
             array_push(this.d_out, (c16 >> 8) & 0xFF);
             if(this.alpha) array_push(this.d_out, a);
-        } else if(this.cf == ImageMode.ICF_TRUE_COLOR_ARGB8565_RBSWAP) {
-            const c16 = ((this.r_act) << 8) | ((this.g_act) << 3) | ((this.b_act) >> 3);	//RGR565
-            array_push(this.d_out, (c16 >> 8) & 0xFF);
-            array_push(this.d_out, c16 & 0xFF);
-            if(this.alpha) array_push(this.d_out, a);
-        } else if(this.cf == ImageMode.ICF_TRUE_COLOR_ARGB8888) {
+        } else if(this.cf == ImageMode.ARGB8888) {
             array_push(this.d_out, this.b_act);
             array_push(this.d_out, this.g_act);
             array_push(this.d_out, this.r_act);
             array_push(this.d_out, a);
-        } else if(this.cf == ImageMode.CF_RGB565A8) {
+        } else if(this.cf == ImageMode.RGB565A8) {
             if(this.pass == 0) {
                 const c16 = ((this.r_act) << 8) | ((this.g_act) << 3) | ((this.b_act) >> 3);	//RGR565
                 array_push(this.d_out, c16 & 0xFF);
@@ -383,7 +322,7 @@ const lv_img_dsc_t ${out_name} = {
             } else if(this.pass == 1) {
                 if(this.alpha) array_push(this.d_out, a);
             }
-        } else if(this.cf == ImageMode.CF_ALPHA_1_BIT) {
+        } else if(this.cf == ImageMode.A1) {
             let w = this.w >> 3;
             if(this.w & 0x07) w++;
             const p = w * y + (x >> 3);
@@ -394,7 +333,7 @@ const lv_img_dsc_t ${out_name} = {
                 this.d_out[p] |= 1 << (7 - (x & 0x7));
             }
         }
-        else if(this.cf == ImageMode.CF_ALPHA_2_BIT) {
+        else if(this.cf == ImageMode.A2) {
             let w = this.w >> 2;
             if(this.w & 0x03) w++;
 
@@ -402,7 +341,7 @@ const lv_img_dsc_t ${out_name} = {
             if(!isset(this.d_out[p])) this.d_out[p] = 0;          /*Clear the bits first*/
             this.d_out[p] |= (a >> 6) << (6 - ((x & 0x3) * 2));
         }
-        else if(this.cf == ImageMode.CF_ALPHA_4_BIT) {
+        else if(this.cf == ImageMode.A4) {
             let w = this.w >> 1;
             if(this.w & 0x01) w++;
 
@@ -410,11 +349,11 @@ const lv_img_dsc_t ${out_name} = {
             if(!isset(this.d_out[p])) this.d_out[p] = 0;          /*Clear the bits first*/
             this.d_out[p] |= (a >> 4) << (4 - ((x & 0x1) * 4));
         }
-        else if(this.cf == ImageMode.CF_ALPHA_8_BIT) {
+        else if(this.cf == ImageMode.A8) {
             const p = this.w * y + x;
             this.d_out[p] = a;
         }
-        else if(this.cf == ImageMode.CF_INDEXED_1_BIT) {
+        else if(this.cf == ImageMode.I1) {
             let w = this.w >> 3;
             if(this.w & 0x07) w++;
 
@@ -422,7 +361,7 @@ const lv_img_dsc_t ${out_name} = {
             if(!isset(this.d_out[p])) this.d_out[p] = 0;          //Clear the bits first
             this.d_out[p] |= (c & 0x1) << (7 - (x & 0x7));
         }
-        else if(this.cf == ImageMode.CF_INDEXED_2_BIT) {
+        else if(this.cf == ImageMode.I2) {
             let w = this.w >> 2;
             if(this.w & 0x03) w++;
 
@@ -430,7 +369,7 @@ const lv_img_dsc_t ${out_name} = {
             if(!isset(this.d_out[p])) this.d_out[p] = 0;          // Clear the bits first
             this.d_out[p] |= (c & 0x3) << (6 - ((x & 0x3) * 2));
         }
-        else if(this.cf == ImageMode.CF_INDEXED_4_BIT) {
+        else if(this.cf == ImageMode.I4) {
             let w = this.w >> 1;
             if(this.w & 0x01) w++;
 
@@ -438,7 +377,7 @@ const lv_img_dsc_t ${out_name} = {
             if(!isset(this.d_out[p])) this.d_out[p] = 0;          // Clear the bits first
             this.d_out[p] |= (c & 0xF) << (4 - ((x & 0x1) * 4));
         }
-        else if(this.cf == ImageMode.CF_INDEXED_8_BIT) {
+        else if(this.cf == ImageMode.I8) {
             const p = this.w * y + x + 1024;                              // +1024 for the palette
             this.d_out[p] = c & 0xFF;
         }
@@ -450,7 +389,7 @@ const lv_img_dsc_t ${out_name} = {
           this.g_nerr = 0;
           this.b_nerr = 0;
         }
-    }
+	}
 
     dith_next(r, g, b, x) {
 
@@ -464,16 +403,7 @@ const lv_img_dsc_t ${out_name} = {
         this.b_act = b + this.b_nerr + this.b_earr[x+1];
         this.b_earr[x+1] = 0;
 
-        if(this.cf == ImageMode.ICF_TRUE_COLOR_ARGB8332) {
-            this.r_act = this.classify_pixel(this.r_act, 3);
-            this.g_act = this.classify_pixel(this.g_act, 3);
-            this.b_act = this.classify_pixel(this.b_act, 2);
-
-            if(this.r_act > 0xE0) this.r_act = 0xE0;
-            if(this.g_act > 0xE0) this.g_act = 0xE0;
-            if(this.b_act > 0xC0) this.b_act = 0xC0;
-
-        } else if(this.cf == ImageMode.ICF_TRUE_COLOR_ARGB8565 || this.cf == ImageMode.ICF_TRUE_COLOR_ARGB8565_RBSWAP) {
+        if(this.cf == ImageMode.ARGB8565) {
             this.r_act = this.classify_pixel(this.r_act, 5);
             this.g_act = this.classify_pixel(this.g_act, 6);
             this.b_act = this.classify_pixel(this.b_act, 5);
@@ -482,7 +412,7 @@ const lv_img_dsc_t ${out_name} = {
             if(this.g_act > 0xFC) this.g_act = 0xFC;
             if(this.b_act > 0xF8) this.b_act = 0xF8;
 
-        } else if(this.cf == ImageMode.ICF_TRUE_COLOR_ARGB8888) {
+        } else if(this.cf == ImageMode.ARGB8888) {
             this.r_act = this.classify_pixel(this.r_act, 8);
             this.g_act = this.classify_pixel(this.g_act, 8);
             this.b_act = this.classify_pixel(this.b_act, 8);
@@ -513,16 +443,7 @@ const lv_img_dsc_t ${out_name} = {
         this.b_earr[x+2] += round_half_up(this.b_nerr / 16);
       }
       else{
-        if(this.cf == ImageMode.ICF_TRUE_COLOR_ARGB8332) {
-            this.r_act = this.classify_pixel(r, 3);
-            this.g_act = this.classify_pixel(g, 3);
-            this.b_act = this.classify_pixel(b, 2);
-
-            if(this.r_act > 0xE0) this.r_act = 0xE0;
-            if(this.g_act > 0xE0) this.g_act = 0xE0;
-            if(this.b_act > 0xC0) this.b_act = 0xC0;
-
-        } else if(this.cf == ImageMode.ICF_TRUE_COLOR_ARGB8565 || this.cf == ImageMode.ICF_TRUE_COLOR_ARGB8565_RBSWAP || this.cf == ImageMode.CF_RGB565A8) {
+        if(this.cf == ImageMode.ARGB8565 || this.cf == ImageMode.RGB565A8) {
             this.r_act = this.classify_pixel(r, 5);
             this.g_act = this.classify_pixel(g, 6);
             this.b_act = this.classify_pixel(b, 5);
@@ -531,7 +452,7 @@ const lv_img_dsc_t ${out_name} = {
             if(this.g_act > 0xFC) this.g_act = 0xFC;
             if(this.b_act > 0xF8) this.b_act = 0xF8;
 
-        } else if(this.cf == ImageMode.ICF_TRUE_COLOR_ARGB8888) {
+        } else if(this.cf == ImageMode.ARGB8888) {
             this.r_act = this.classify_pixel(r, 8);
             this.g_act = this.classify_pixel(g, 8);
             this.b_act = this.classify_pixel(b, 8);
@@ -549,30 +470,22 @@ const lv_img_dsc_t ${out_name} = {
       if(val < 0) val = 0;
       return val;
     }
+
     format_to_c_array() {
-        
         let c_array = "";
         var i = 0;
         let y_end = this.h;
         let x_end = this.w;
 
-        if(this.cf == ImageMode.ICF_TRUE_COLOR_ARGB8332) {
-            c_array += "\n#if LV_COLOR_DEPTH == 1 || LV_COLOR_DEPTH == 8";
-            if(!this.alpha) c_array += "\n  /*Pixel format: Red: 3 bit, Green: 3 bit, Blue: 2 bit*/";
-            else  c_array += "\n  /*Pixel format: Alpha 8 bit, Red: 3 bit, Green: 3 bit, Blue: 2 bit*/";
-        } else if(this.cf == ImageMode.ICF_TRUE_COLOR_ARGB8565) {
+        if(this.cf == ImageMode.ARGB8565) {
             c_array += "\n#if LV_COLOR_DEPTH == 16 && LV_COLOR_16_SWAP == 0";
             if(!this.alpha) c_array += "\n  /*Pixel format: Red: 5 bit, Green: 6 bit, Blue: 5 bit*/";
             else c_array += "\n  /*Pixel format: Alpha 8 bit, Red: 5 bit, Green: 6 bit, Blue: 5 bit*/";
-        }  else if(this.cf == ImageMode.ICF_TRUE_COLOR_ARGB8565_RBSWAP) {
-            c_array += "\n#if LV_COLOR_DEPTH == 16 && LV_COLOR_16_SWAP != 0";
-            if(!this.alpha) c_array +=  "\n  /*Pixel format: Red: 5 bit, Green: 6 bit, Blue: 5 bit BUT the 2 bytes are swapped*/";
-            else c_array += "\n  /*Pixel format: Alpha 8 bit, Red: 5 bit, Green: 6 bit, Blue: 5 bit  BUT the 2  color bytes are swapped*/";
-        }  else if(this.cf == ImageMode.ICF_TRUE_COLOR_ARGB8888) {
+        }  else if(this.cf == ImageMode.ARGB8888) {
             c_array += "\n#if LV_COLOR_DEPTH == 32";
             if(!this.alpha) c_array += "\n  /*Pixel format: Fix 0xFF: 8 bit, Red: 8 bit, Green: 8 bit, Blue: 8 bit*/";
             else "\n  /*Pixel format: Alpha 8 bit, Red: 8 bit, Green: 8 bit, Blue: 8 bit*/";
-        } else if(this.cf == ImageMode.CF_INDEXED_1_BIT) {
+        } else if(this.cf == ImageMode.I1) {
             c_array += "\n";
             for(var p = 0; p < 2; p ++) {
                 c_array += "  0x" + str_pad(dechex(this.d_out[p * 4 + 0]), 2, '0', true) + ", ";
@@ -584,7 +497,7 @@ const lv_img_dsc_t ${out_name} = {
     
             i = p * 4;
         }
-        else if(this.cf == ImageMode.CF_INDEXED_2_BIT) {
+        else if(this.cf == ImageMode.I2) {
             c_array += "\n";
             for(p = 0; p < 4; p ++) {
                 c_array += "  0x" + str_pad(dechex(this.d_out[p * 4 + 0]), 2, '0', true) + ", ";
@@ -596,7 +509,7 @@ const lv_img_dsc_t ${out_name} = {
     
             i = p * 4;
         }
-        else if(this.cf == ImageMode.CF_INDEXED_4_BIT) {
+        else if(this.cf == ImageMode.I4) {
             c_array += "\n";
             for(p = 0; p < 16; p ++) {
                 c_array += "  0x" + str_pad(dechex(this.d_out[p * 4 + 0]), 2, '0', true) + ", ";
@@ -608,7 +521,7 @@ const lv_img_dsc_t ${out_name} = {
     
             i = p * 4;
         }
-        else if(this.cf == ImageMode.CF_INDEXED_8_BIT) {
+        else if(this.cf == ImageMode.I8) {
             c_array += "\n";
             for(p = 0; p < 256; p ++) {
                 c_array += "  0x" + str_pad(dechex(this.d_out[p * 4 + 0]), 2, '0', true) + ", ";
@@ -620,15 +533,15 @@ const lv_img_dsc_t ${out_name} = {
     
             i = p * 4;
         }
-        else if(this.cf == ImageMode.CF_RAW_ALPHA || this.cf == ImageMode.CF_RAW_CHROMA) {
+        else if(this.cf == ImageMode.RAW_ALPHA || this.cf == ImageMode.RAW_CHROMA) {
             y_end = 1;
             x_end = this.d_out.length;
             i = 1;
-        } else if(this.cf == ImageMode.CF_ALPHA_1_BIT
-            || this.cf == ImageMode.CF_ALPHA_2_BIT
-            || this.cf == ImageMode.CF_ALPHA_4_BIT
-            || this.cf == ImageMode.CF_ALPHA_8_BIT
-            || this.cf == ImageMode.CF_RGB565A8) {
+        } else if(this.cf == ImageMode.A1
+            || this.cf == ImageMode.A2
+            || this.cf == ImageMode.A4
+            || this.cf == ImageMode.A8
+            || this.cf == ImageMode.RGB565A8) {
             /* No special handling required */
         } else
             throw new Error("Unhandled color format: " + ImageMode[this.cf]);
@@ -637,65 +550,56 @@ const lv_img_dsc_t ${out_name} = {
         for(var y = 0; y < y_end; y++) {
             c_array += "\n  ";
             for(var x = 0; x < x_end; x++) {
-                /* Note: some accesses to d_out may be out of bounds */
-                if(this.cf == ImageMode.ICF_TRUE_COLOR_ARGB8332) {
-                    c_array += "0x" + str_pad(dechex(this.d_out[i]), 2, '0', true) + ", ";  i++;
-                    if(this.alpha) {
-                        c_array += "0x" + str_pad(dechex(this.d_out[i]), 2, '0', true) + ", ";
-                        i++;
-                    }
-                }
-                else if(this.cf == ImageMode.ICF_TRUE_COLOR_ARGB8565 || this.cf == ImageMode.ICF_TRUE_COLOR_ARGB8565_RBSWAP || this.cf == ImageMode.CF_RGB565A8) {
+                if(this.cf == ImageMode.ARGB8565 || this.cf == ImageMode.RGB565A8) {
                     if(this.options.swapEndian) {
                         c_array += "0x" + str_pad(dechex(this.d_out[i+1]), 2, '0', true) + ", ";
                         c_array += "0x" + str_pad(dechex(this.d_out[i]), 2, '0', true) + ", ";
                     } else {
-                        c_array += "0x" + str_pad(dechex(this.d_out[i]), 2, '0', true) + ", ";
-                        c_array += "0x" + str_pad(dechex(this.d_out[i+1]), 2, '0', true) + ", ";
+                    c_array += "0x" + str_pad(dechex(this.d_out[i]), 2, '0', true) + ", ";
+                    c_array += "0x" + str_pad(dechex(this.d_out[i+1]), 2, '0', true) + ", ";
                     }
                     i += 2;
-                    if(this.cf != ImageMode.CF_RGB565A8 && this.alpha) {
-                        c_array += "0x" + str_pad(dechex(this.d_out[i]), 2, '0', true) + ", ";
+                    if(this.cf != ImageMode.RGB565A8 && this.alpha) {
+                    c_array += "0x" + str_pad(dechex(this.d_out[i]), 2, '0', true) + ", ";
                         i++;
                     }
                 }
-                else if(this.cf == ImageMode.ICF_TRUE_COLOR_ARGB8888) {
+                else if(this.cf == ImageMode.ARGB8888) {
                     if(this.options.swapEndian) {
                         c_array += "0x" + str_pad(dechex(this.d_out[i+2]), 2, '0', true) + ", ";
                         c_array += "0x" + str_pad(dechex(this.d_out[i+1]), 2, '0', true) + ", ";
                         c_array += "0x" + str_pad(dechex(this.d_out[i]), 2, '0', true) + ", ";
                     } else {
-                        c_array += "0x" + str_pad(dechex(this.d_out[i]), 2, '0', true) + ", ";
-                        c_array += "0x" + str_pad(dechex(this.d_out[i+1]), 2, '0', true) + ", ";
-                        c_array += "0x" + str_pad(dechex(this.d_out[i+2]), 2, '0', true) + ", ";
+                    c_array += "0x" + str_pad(dechex(this.d_out[i]), 2, '0', true) + ", ";
+                    c_array += "0x" + str_pad(dechex(this.d_out[i+1]), 2, '0', true) + ", ";
+                    c_array += "0x" + str_pad(dechex(this.d_out[i+2]), 2, '0', true) + ", ";
                     }
                     c_array += "0x" + str_pad(dechex(this.d_out[i+3]), 2, '0', true) + ", ";
-                    
                     i += 4;
                 }
-                else if(this.cf == ImageMode.CF_ALPHA_1_BIT || this.cf == ImageMode.CF_INDEXED_1_BIT) {
+                else if(this.cf == ImageMode.A1 || this.cf == ImageMode.I1) {
                     if((x & 0x7) == 0) {
                         c_array += "0x" + str_pad(dechex(this.d_out[i]), 2, '0', true) + ", ";
                         i++;
                     }
-                }
-                else if(this.cf == ImageMode.CF_ALPHA_2_BIT || this.cf == ImageMode.CF_INDEXED_2_BIT) {
+        }
+                else if(this.cf == ImageMode.A2 || this.cf == ImageMode.I2) {
                     if((x & 0x3) == 0) {
                         c_array += "0x" + str_pad(dechex(this.d_out[i]), 2, '0', true) + ", ";
                         i++;
                     }
                 }
-                else if(this.cf == ImageMode.CF_ALPHA_4_BIT || this.cf == ImageMode.CF_INDEXED_4_BIT) {
+                else if(this.cf == ImageMode.A4 || this.cf == ImageMode.I4) {
                     if((x & 0x1) == 0) {
                         c_array += "0x" + str_pad(dechex(this.d_out[i]), 2, '0', true) + ", ";
                         i++;
                     }
                 }
-                else if(this.cf == ImageMode.CF_ALPHA_8_BIT || this.cf == ImageMode.CF_INDEXED_8_BIT) {
+                else if(this.cf == ImageMode.A8 || this.cf == ImageMode.I8) {
                     c_array += "0x" + str_pad(dechex(this.d_out[i]), 2, '0', true) + ", ";
                     i++;
                 }
-                else if(this.cf == ImageMode.CF_RAW_ALPHA || this.cf == ImageMode.CF_RAW_CHROMA) {
+                else if(this.cf == ImageMode.RAW_ALPHA || this.cf == ImageMode.RAW_CHROMA) {
                     c_array += "0x" + str_pad(dechex(this.d_out[i]), 2, '0', true) + ", ";
                     if(i != 0 && ((i % 16) == 0)) c_array += "\n  ";
                     i++;
@@ -704,28 +608,28 @@ const lv_img_dsc_t ${out_name} = {
             }
         }
 
-        if(this.cf == ImageMode.CF_RGB565A8) {
+        if(this.cf == ImageMode.RGB565A8) {
             c_array += "\n  /*alpha channel*/\n  ";
             for(var y = 0; y < y_end; y++) {
+                c_array += "\n  ";
                 for(var x = 0; x < x_end; x++) {
                     c_array += "0x" + str_pad(dechex(this.d_out[i]), 2, '0', true) + ", ";
-                    i++;
+                    i += 1;
                 }
-                c_array += "\n  ";
             }
         }
-    
-        if(this.cf == ImageMode.ICF_TRUE_COLOR_ARGB8332 || this.cf == ImageMode.ICF_TRUE_COLOR_ARGB8565 || this.cf == ImageMode.ICF_TRUE_COLOR_ARGB8565_RBSWAP || this.cf == ImageMode.ICF_TRUE_COLOR_ARGB8888) {
+
+        if( this.cf == ImageMode.ARGB8565 || 
+            this.cf == ImageMode.ARGB8888) {
             c_array += "\n#endif";
         }
         return c_array;
-    
     }
 }
 
 
 export function isNotRaw(options: { cf: ImageMode; }): boolean {
-    return options.cf != ImageMode.CF_RAW && options.cf != ImageMode.CF_RAW_ALPHA; /* && options.cf != ImageMode.CF_RAW_CHROMA; */
+    return options.cf != ImageMode.RAW && options.cf != ImageMode.RAW_ALPHA; /* && options.cf != ImageMode.CF_RAW_CHROMA; */
 }
 
 async function convertImageBlob(img: Image|Uint8Array, options: Partial<ConverterOptions>): Promise<string|ArrayBuffer> {
@@ -738,38 +642,28 @@ async function convertImageBlob(img: Image|Uint8Array, options: Partial<Converte
     const outputFormat: OutputMode = options.outputFormat;
     let c_creator: Converter;
     if(isImage(img, options)) {
-        const canvas = createCanvas(img.width, img.height);
-        const ctx = canvas.getContext('2d')
-        ctx.drawImage(img, 0, 0);
-        const imageData = ctx.getImageData(0, 0, img.width, img.height).data;
-    
-        const alpha = (options.cf == ImageMode.CF_TRUE_COLOR_ALPHA
-            || options.cf == ImageMode.CF_ALPHA_1_BIT
-            || options.cf == ImageMode.CF_ALPHA_2_BIT
-            || options.cf == ImageMode.CF_ALPHA_4_BIT
-            || options.cf == ImageMode.CF_ALPHA_8_BIT
-            || options.cf == ImageMode.CF_RGB565A8);
-        c_creator = new Converter(img.width, img.height, imageData, alpha, options);
+    const canvas = createCanvas(img.width, img.height);
+    const ctx = canvas.getContext('2d')
+    ctx.drawImage(img, 0, 0);
+    const imageData = ctx.getImageData(0, 0, img.width, img.height).data;
+
+        const alpha = (options.cf == ImageMode.A1
+            || options.cf == ImageMode.A2
+            || options.cf == ImageMode.A4
+            || options.cf == ImageMode.A8
+            || options.cf == ImageMode.RGB565A8);
+    c_creator = new Converter(img.width, img.height, imageData, alpha, options);
         
         if(options.outputFormat == OutputMode.C) {
-            if(options.cf == ImageMode.CF_TRUE_COLOR || options.cf == ImageMode.CF_TRUE_COLOR_ALPHA || options.cf == ImageMode.CF_TRUE_COLOR_CHROMA) {
-                const arrayList = await Promise.all([
-                    ImageMode.ICF_TRUE_COLOR_ARGB8332,
-                    ImageMode.ICF_TRUE_COLOR_ARGB8565,
-                    ImageMode.ICF_TRUE_COLOR_ARGB8565_RBSWAP,
-                    ImageMode.ICF_TRUE_COLOR_ARGB8888
-                ].map(cf => new Converter(img.width, img.height, imageData, alpha, Object.assign({}, options, { cf })).convert())) as string[];
-                c_res_array = arrayList.join("");
-            } else
-                c_res_array = await c_creator.convert() as string;
+            c_res_array = await c_creator.convert() as string;
         } else {
             const binaryConv = new Converter(img.width, img.height, imageData, alpha, options);
             bin_res_blob = await binaryConv.convert() as ArrayBuffer;
         }
     } else {
-        c_creator = new Converter(options.overrideWidth ?? 0, options.overrideHeight ?? 0, img, options.cf == ImageMode.CF_RAW_ALPHA, options);
+        c_creator = new Converter(options.overrideWidth ?? 0, options.overrideHeight ?? 0, img, options.cf == ImageMode.RAW_ALPHA, options);
         if(options.outputFormat == OutputMode.C)
-            c_res_array = await c_creator.convert() as string;
+    c_res_array = await c_creator.convert() as string;
         else
             bin_res_blob = await c_creator.convert() as ArrayBuffer;
     }
@@ -778,7 +672,7 @@ async function convertImageBlob(img: Image|Uint8Array, options: Partial<Converte
     if(outputFormat == OutputMode.BIN)
         return bin_res_blob;
     else
-        return c_creator.get_c_header(out_name) + c_res_array + c_creator.get_c_footer(options.cf, out_name);
+    return c_creator.get_c_header(out_name) + c_res_array + c_creator.get_c_footer(options.cf, out_name);
 }
 
 export { convertImageBlob, Converter };
